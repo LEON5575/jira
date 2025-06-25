@@ -21,3 +21,13 @@ exports.sendProjectCreationEmail = async (recipients, projectName) => {
 
   await transporter.sendMail(mailOptionsProject);
 };
+
+exports.sendBacklogAssignmentEmail = async (to, summary) => {
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to,
+    subject: 'New Backlog Task Assigned to You',
+    text: `You have been assigned a new backlog task:\n\n${summary}`
+  });
+};
+

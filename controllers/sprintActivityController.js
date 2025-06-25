@@ -136,8 +136,9 @@ exports.stopSprintByBacklog = async (req, res) => {
     console.error(err);
     res.status(500).json({ message: 'Error stopping sprint', error: err.message });
   }
-};
+      };
 
+//&start sprint by sprintId
 exports.startSprintBySprintId = async (req, res) => {
   try {
     const { sprintId } = req.params;
@@ -207,19 +208,28 @@ exports.startSprintBySprintId = async (req, res) => {
 
 
 //& STOP Sprint using Sprint ID
+
 exports.stopSprintBySprintId = async (req, res) => {
   try {
     const { sprintId } = req.params;
     const { stoppedBy, note } = req.body;
 
+    // Step 1: Find sprint
     const sprint = await Sprint.findById(sprintId);
-    if (!sprint) return res.status(404).json({ message: 'Sprint not found' });
-    if (sprint.status !== 'active') return res.status(400).json({ message: 'Sprint is not active' });
+    if (!sprint) {
+      return res.status(404).json({ message: 'Sprint not found' });
+    }
+    // if (sprint.status !== 'active') {
+    //   return res.status(400).json({ message: 'Sprint is not active' });
+    // }
 
-    sprint.status = 'completed';
+    // Step 2: Mark sprint as completed
+   // sprint.status = 'completed';
     sprint.endedAt = new Date();
+    sprint.stoppedBy = stoppedBy || null; // Optional tracking
     await sprint.save();
 
+    // Step 3: Get related backlogs and assignees
     const backlogs = await Backlog.find({ sprintId }).populate('assignees.memberId');
     const userMap = new Map();
     const backlogIds = [];
@@ -245,6 +255,7 @@ exports.stopSprintBySprintId = async (req, res) => {
       }
     }
 
+    // Step 4: Notify each user
     for (const [userId, { name, email, backlogs }] of userMap.entries()) {
       const summary = {
         sprintName: sprint.sprintName,
@@ -253,23 +264,30 @@ exports.stopSprintBySprintId = async (req, res) => {
         assignedBacklogs: backlogs
       };
 
-      notifyUser(userId, 'sprintStopped', summary);
+      // Internal system notification (optional)
+      notifyUser?.(userId, 'sprintStopped', summary);
 
+      // Email notification
       await sendMail({
         to: email,
         subject: `🏁 Sprint "${sprint.sprintName}" completed`,
-        text: `Hi ${name},\n\nThe sprint "${sprint.sprintName}" has ended.\nYou were assigned ${backlogs.length} items.\n\nNote: ${note || '—'}\n\nThanks!`
+        text: `Hi ${name},\n\nThe sprint "${sprint.sprintName}" has ended.\nYou were assigned ${backlogs.length} backlog item(s).\n\nSprint Goal: ${sprint.sprintGoal || '—'}\nNote: ${note || '—'}\n\nThanks,\nProject Team`
       });
     }
 
+    // Step 5: Respond
     res.status(200).json({
       message: 'Sprint stopped and notifications sent.',
       sprintId: sprint._id,
       backlogIds
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error stopping sprint', error: err.message });
+    console.error('Error stopping sprint:', err);
+    res.status(500).json({
+      message: 'Error stopping sprint',
+      error: err.message
+    });
   }
 };
+
 
